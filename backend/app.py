@@ -58,6 +58,10 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def _startup() -> None:
+        # Patch broken optional renderers before any request can trigger them.
+        from .services.pin_service import _patch_renderers_once
+        _patch_renderers_once()
+
         # Kick off discovery in a daemon thread so the HTTP server starts
         # immediately and the cache is ready by the time the first browser
         # request arrives (usually a few seconds later).

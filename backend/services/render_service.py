@@ -145,9 +145,7 @@ def _design_to_graph(design: DesignDocument) -> dict:
             {
                 "instanceName": placement.name,
                 "componentId": placement.componentId,
-                "options": {
-                    key: str(value) for key, value in placement.params.items()
-                },
+                "options": _safe_options(placement.params),
                 "position": {"x": placement.x, "y": placement.y},
                 "rotation": placement.rotation,
             }
@@ -169,14 +167,31 @@ def _design_to_graph(design: DesignDocument) -> dict:
                 "routeComponentId": (
                     connection.routeComponentId or "RouteMeander"
                 ),
-                "routeOverrides": {
-                    key: str(value)
-                    for key, value in connection.routeOverrides.items()
-                },
+                "routeOverrides": _safe_options(connection.routeOverrides),
             }
             for connection in design.connections
         ],
     }
+
+
+def _safe_options(params: dict) -> dict:
+    """Convert param values to strings Qiskit Metal accepts.
+
+    Booleans become 'True'/'False', dicts become JSON strings,
+    everything else is str()-ed.
+    """
+    import json
+    result = {}
+    for k, v in params.items():
+        if isinstance(v, dict):
+            result[k] = json.dumps(v)
+        elif isinstance(v, bool):
+            result[k] = str(v)
+        elif v is None:
+            pass  # skip None values
+        else:
+            result[k] = str(v)
+    return result
 
 
 def _worker_component_svg(queue: multiprocessing.Queue, args: tuple) -> None:
@@ -373,7 +388,19 @@ def _worker_full_design(queue: multiprocessing.Queue, args: tuple) -> None:
 
         fig, ax = plt.subplots(figsize=(10, 10), facecolor="#F4F4F0")
         ax.set_facecolor("#F4F4F0")
-        QMplRenderer(canvas=None, design=design, logger=log).render(ax)
+
+        # QMplRenderer API varies by qiskit-metal patch version; try both forms
+        try:
+            renderer = QMplRenderer(canvas=None, design=design, logger=log)
+            renderer.render(ax)
+        except TypeError:
+            try:
+                renderer = QMplRenderer(design, ax=ax)
+                renderer.render_design()
+            except Exception:
+                # Last resort: use the design's built-in MPL renderer
+                design.plot(ax=ax)
+
         ax.autoscale_view()
         ax.set_aspect("equal", adjustable="datalim")
         ax.set_axis_off()
