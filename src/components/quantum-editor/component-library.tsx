@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { ChevronDown, ChevronRight, Search, Box, Loader2 } from "lucide-react";
@@ -26,11 +26,22 @@ export function ComponentLibrary() {
 
 function LibraryContent() {
   const [filter, setFilter] = useState("");
+  const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState<Partial<Record<ComponentCategory, boolean>>>({
     qubits: true,
     routes: true,
   });
-  const { data = [], isLoading, isError } = useQuery(componentsQueryOptions());
+
+  // Suppress SSR/client mismatch by only showing dynamic content after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const { data = [], isLoading, isError } = useQuery({
+    ...componentsQueryOptions(),
+    // Don't run on server — avoids hydration mismatch from async bridge data
+    enabled: mounted,
+  });
 
   const grouped: Record<ComponentCategory, ComponentSummary[]> = {
     qubits: [],
@@ -48,14 +59,18 @@ function LibraryContent() {
     (grouped[c.category] ?? grouped.other).push(c);
   }
 
+  const bridgeLabel = isBridgeConfigured() ? "From bridge" : "Dev preview (mock)";
+
   return (
     <div className="flex h-full flex-col gap-2 text-xs">
       <div className="px-1 pb-1">
         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           Component Library
         </p>
+        {/* Only render the count client-side to avoid SSR mismatch */}
         <p className="text-[10px] text-muted-foreground/80">
-          {isBridgeConfigured() ? "From bridge" : "Dev preview (mock)"} · {data.length} components
+          {bridgeLabel}
+          {mounted && data.length > 0 && ` · ${data.length} components`}
         </p>
       </div>
       <div className="relative px-1">
@@ -67,18 +82,21 @@ function LibraryContent() {
           className="h-7 pl-7 text-[11px]"
         />
       </div>
-      {isLoading && (
+
+      {(!mounted || isLoading) && (
         <div className="flex flex-1 items-center justify-center gap-2 text-[11px] text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading components…
         </div>
       )}
-      {isError && (
-        <div className="px-2 text-[11px] text-destructive">
-          Failed to load components. Is the bridge running at {isBridgeConfigured() ? import.meta.env.VITE_BRIDGE_URL : ""}?
+
+      {mounted && isError && (
+        <div className="px-2 py-2 text-[11px] text-destructive">
+          Failed to load components. Is the bridge running?
         </div>
       )}
-      {!isLoading && !isError && (
+
+      {mounted && !isLoading && !isError && (
         <div className="flex-1 space-y-1 overflow-y-auto px-1 pb-2">
           {CATEGORY_ORDER.map((cat) => {
             const items = grouped[cat];
@@ -138,9 +156,10 @@ function LibraryItem({ component }: { component: ComponentSummary }) {
       className={cn(
         "group flex cursor-grab flex-col items-center gap-1 rounded-md border border-border bg-background p-1.5 transition-all hover:border-primary hover:shadow-sm active:cursor-grabbing",
       )}
-      title={`Drag ${component.name} onto canvas`}
+      title={`${component.name} — ${component.description ?? component.category}`}
     >
-      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded bg-muted/40">
+      {/* Preview thumbnail */}
+      <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded bg-muted/40">
         {previewQ.data?.svg ? (
           <svg
             viewBox={`${previewQ.data.viewBox.x} ${previewQ.data.viewBox.y} ${previewQ.data.viewBox.w} ${previewQ.data.viewBox.h}`}
@@ -154,10 +173,14 @@ function LibraryItem({ component }: { component: ComponentSummary }) {
           <Box className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
         )}
       </div>
-      <span className="line-clamp-1 max-w-full text-center text-[10px] font-semibold text-foreground">
+
+      {/* Name — truncated with full name on hover via title */}
+      <span
+        className="w-full truncate text-center text-[10px] font-semibold leading-tight text-foreground"
+        title={component.name}
+      >
         {component.name}
       </span>
-      <span className="text-[9px] text-muted-foreground">{component.id}</span>
     </motion.div>
   );
 }

@@ -1,4 +1,4 @@
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { AlertTriangle } from "lucide-react";
 import {
@@ -95,13 +95,7 @@ function SchematicEditorShell() {
           <ResizablePanelGroup orientation="horizontal">
             <ResizablePanel defaultSize="20%" minSize="14%" maxSize="32%">
               <div className="h-full overflow-hidden border-r border-border bg-card p-2">
-                <Suspense
-                  fallback={
-                    <div className="p-2 text-xs text-muted-foreground">Loading components…</div>
-                  }
-                >
-                  <ComponentLibrary />
-                </Suspense>
+                <ComponentLibrary />
               </div>
             </ResizablePanel>
             <ResizableHandle />
