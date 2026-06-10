@@ -46,10 +46,10 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=["*"],
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type"],
+        allow_headers=["*"],
     )
 
     app.include_router(health.router)
@@ -68,6 +68,7 @@ def create_app() -> FastAPI:
     async def _not_implemented(_: Request, exc: NotImplementedError) -> JSONResponse:
         return JSONResponse(
             status_code=501,
+            headers={"Access-Control-Allow-Origin": "*"},
             content={
                 "error": {
                     "code": "NOT_IMPLEMENTED",
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
         log.exception("Unhandled bridge error", exc_info=exc)
         return JSONResponse(
             status_code=500,
+            headers={"Access-Control-Allow-Origin": "*"},
             content={
                 "error": {
                     "code": "BRIDGE_ERROR",
